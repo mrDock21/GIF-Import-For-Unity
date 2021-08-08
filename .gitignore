@@ -3,6 +3,8 @@ project directory
 #
 # Get latest from 
 https://github.com/github/gitignore/blob/master/Unity.gitignore
+
+/Tests/
 #
 /[Ll]ibrary/
 /[Tt]emp/
