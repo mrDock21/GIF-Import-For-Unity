@@ -32,6 +32,7 @@ namespace GIFImport.Editor
             ReadGifWindow window = 
                 (ReadGifWindow)EditorWindow.GetWindow(typeof(ReadGifWindow));
 
+            window.titleContent = new GUIContent("GIF Import for Unity");
             window.Initialize();
             window.Show();
         }
@@ -73,7 +74,7 @@ namespace GIFImport.Editor
             EditorGUILayout.HelpBox(helpBoxText, helpboxType);
             EditorGUILayout.Space();
 
-            if (GUILayout.Button("Transform GIF"))
+            if (GUILayout.Button("Import GIF"))
                 ReadGifFile();
 
             bool imageChanged = prevTexture != gifSprite;
