@@ -11,7 +11,7 @@ The repo itself relies on [Magick.Net](https://github.com/dlemstra/Magick.NET) t
 
 In Unity, select Tools -> GIF Import
 
-// image with the window
+![GIF Import window](https://github.com/mrDock21/GIF-Import-For-Unity/blob/main/Assets/Resources/GIF_import_window_0.PNG)
 
 After an image's (GIF) been selected, you will have the following two options (only one really): you can watch a quick preview of the frames, or decompress (import) the GIF immediately.
 
