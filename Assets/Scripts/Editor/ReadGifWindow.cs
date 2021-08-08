@@ -2,6 +2,7 @@
 using UnityEditor;
 using ImageMagick;
 using System.Linq;
+using System.Collections.Generic;
 
 namespace GIFImport.Editor
 {
@@ -12,10 +13,15 @@ namespace GIFImport.Editor
 
         private Texture2D previewTex = null,
                           prevTexture = null;
+        private List<Texture2D> previews = null;
         private MagickImage cacheImg = null;
-        private TextureImporterType GifImportType;
+
+        private string helpBoxText;
+        private MessageType helpboxType;
 
         private GifReader reader = null;
+
+        private GUIStyle tittleStyle = null;
 
         // Add menu named "My Window" to the Window menu
         [MenuItem("Tools/GIF Import")]
@@ -34,6 +40,15 @@ namespace GIFImport.Editor
             previewTex = prevTexture = null;
             cacheImg = null;
 
+            helpBoxText = "Select an image to uncompress";
+            helpboxType = MessageType.Info;
+
+            tittleStyle = new GUIStyle();
+            tittleStyle.fontSize = 20;
+            tittleStyle.fontStyle = FontStyle.Bold;
+            tittleStyle.normal.textColor = Color.black;
+            tittleStyle.alignment = TextAnchor.MiddleCenter;
+
             reader = new GifReader(wnd:this);
         }
 
@@ -41,35 +56,37 @@ namespace GIFImport.Editor
 
         void OnGUI()
         {
-            var style = new GUIStyle();
-            style.fontSize = 20;
-            style.fontStyle = FontStyle.Bold;
-            
-            EditorGUILayout.PrefixLabel("GIF Import for Unity", style);
+            EditorGUILayout.Space();
+            EditorGUILayout.Space();
+            EditorGUILayout.Space();
+            EditorGUILayout.LabelField("GIF Import for Unity", tittleStyle);
+            EditorGUILayout.Space();
+            EditorGUILayout.Space();
+            EditorGUILayout.Space();
+
             EditorGUILayout.PrefixLabel("Gif to import");
             gifSprite = (Texture2D)EditorGUILayout.ObjectField(gifSprite, typeof(Texture2D), true);
 
-            EditorGUILayout.HelpBox("Helpbox", MessageType.Info);
+            EditorGUILayout.Space();
+            EditorGUILayout.HelpBox(helpBoxText, helpboxType);
+            EditorGUILayout.Space();
 
             if (GUILayout.Button("Transform GIF"))
                 ReadGifFile();
 
-            if (prevTexture != gifSprite)
+            bool imageChanged = prevTexture != gifSprite;
+
+            if (gifSprite != null && imageChanged)
                 UpdateAttributes();
 
             // OnGUI is called a lot of times!
             if (gifSprite != null)
             {
-                if (previewTex == null)
+                if (imageChanged)
                     UpdatePreview();
 
-                EditorGUI.PrefixLabel(
-                    new Rect(10, 200, 100, 10), new GUIContent("Preview:")
-                );
-                EditorGUI.DrawTextureTransparent(
-                    new Rect(0, 211, position.width, position.height / 2), 
-                    previewTex, ScaleMode.ScaleAndCrop
-                );
+                if (previews != null)
+                    ConstructPreview();
             }
         }
 
@@ -78,6 +95,11 @@ namespace GIFImport.Editor
         /// </summary>
         public void Notify(string msg, double delay=2.0d) => 
             ShowNotification(new GUIContent(msg), delay);
+
+        public void Log(string msg, MessageType t)
+        {
+            helpBoxText = msg; helpboxType = t;
+        }
 
         private void UpdateAttributes()
         {
@@ -92,26 +114,69 @@ namespace GIFImport.Editor
 
             prevTexture = gifSprite;
             previewTex = null;
-            Debug.Log("Path => " + reader.absolutePathToGif);
+
+            Log("Press the button to import the GIF", MessageType.Info);
         }
 
-        private void UpdatePreview()
+        private async void UpdatePreview()
         {
-            try
+            if (!reader.IsValidImage())
             {
-                // free older image
-                cacheImg?.Dispose();
-                // read the new one
-                cacheImg = new MagickImage(reader.absolutePathToGif);
-                // for some reason, it's flipped
-                cacheImg.Flop();
-                // get new texture2D
-                previewTex = MagickToTex2D(cacheImg, cacheImg.Width, cacheImg.Height);
-
+                previews?.Clear();
+                previews = null;
+                return;
             }
-            catch (MagickException e)
+            var frames = await reader.ReadTimeline(5);
+
+            previews = new List<Texture2D>();
+            foreach (var img in frames)
             {
-                ShowNotification(new GUIContent(e.Message));
+                img.Flop();
+                previews.Add(MagickToTex2D(img, img.Width, img.Height));
+            }
+        }
+
+        private void ConstructPreview()
+        {
+            Rect containerRect = new Rect(0, 211, position.width, position.height / 2);
+            Rect imgContainer = new Rect();
+            Vector2 auxPos, gridCenter;
+            List<Vector2> offsets = new List<Vector2>();
+            float xSpacing = 10, ySpacing = 5;
+            const float framesPerRow = 3.0f, maxRows = 2.0f;
+
+            EditorGUI.PrefixLabel(
+                new Rect(10, 200, 100, 10), new GUIContent("Preview:")
+            );
+
+            imgContainer.width = (containerRect.width / framesPerRow) - xSpacing * (framesPerRow - 1);
+            imgContainer.height = (containerRect.height / maxRows) - ySpacing;
+
+            gridCenter.x = (imgContainer.width + xSpacing) * framesPerRow / 2f;
+            gridCenter.y = containerRect.center.y;
+
+            for (int r = 0; r < maxRows; r++)
+            {
+                for (int i = 0; i < framesPerRow; i++)
+                {
+                    auxPos = new Vector2(
+                        i * (imgContainer.width + xSpacing),
+                        r * (imgContainer.height + ySpacing)
+                    );
+                    offsets.Add((containerRect.position + auxPos) - gridCenter);
+                }
+            }
+
+            int frame = 0;
+            foreach (var offset in offsets)
+            {
+                imgContainer.position = containerRect.center + offset; 
+                EditorGUI.DrawTextureTransparent(
+                    imgContainer,
+                    previews[frame], ScaleMode.ScaleAndCrop
+                );
+
+                frame = (frame + 1) % previews.Count;
             }
         }
 
@@ -122,13 +187,14 @@ namespace GIFImport.Editor
 
             if (gifSprite == null)
             {
-                ShowNotification(new GUIContent("Choose an image first!"), 2);
+                Log("Choose an image first!", MessageType.Error);
+                Notify("Choose an image first!", 2);
                 return;
             }
 
             if (unpackFolder.Length <= 0)
             {
-                ShowNotification(new GUIContent("Canceled"), 2);
+                Notify("Canceled", 2);
                 return;
             }
 
@@ -139,9 +205,6 @@ namespace GIFImport.Editor
             reader.absoluteFolder = absoluteFolder;
             reader.relativeFolder = relativeFolder;
             reader.GifTexture = gifSprite;
-
-            Debug.Log("Absolute folder path => " + absoluteFolder);
-            Debug.Log("Folder path => " + relativeFolder);
 
             reader.ReadGifFile();
         }

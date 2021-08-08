@@ -5,6 +5,7 @@ using UnityEditor;
 using ImageMagick;
 using GIFImport.Frames;
 using System.Linq;
+using System.Threading.Tasks;
 
 namespace GIFImport.Editor
 {
@@ -23,10 +24,9 @@ namespace GIFImport.Editor
 
         public GifReader(ReadGifWindow wnd) { window = wnd; }
 
-        public void ReadGifFile()
+        public bool IsValidImage()
         {
-            MagickImageInfo info = null;
-            // Read from file.
+            MagickImageInfo info;
             try
             {
                 // Check if GIF first...
@@ -34,14 +34,43 @@ namespace GIFImport.Editor
             }
             catch (MagickException)
             {
-                Debug.LogError("Couldn't open image");
+                window.Log("Couldn't open image, normally this happens with Unity's internal images", MessageType.Error);
+                return false;
             }
 
-            if (info.Format != MagickFormat.Gif)
+            return info.Format == MagickFormat.Gif;
+        }
+
+        public async Task<List<MagickImage>> ReadTimeline(int numFrames)
+        {
+            List<MagickImage> res = new List<MagickImage>();
+            MagickImageCollection frames;
+            int spacing;
+
+            frames = new MagickImageCollection(absolutePathToGif);
+            spacing = frames.Count / numFrames;
+
+            if (spacing == 0)
+                spacing = 1;
+
+            for (int i = 0; i < frames.Count; i += spacing)
             {
-                window.Notify("Given image is not a GIF!");
+                res.Add( new MagickImage(frames.ElementAt(i)) );
+            }
+
+            frames.Dispose();
+
+            return res;
+        }
+
+        public void ReadGifFile()
+        {
+            if (!IsValidImage())
+            {
+                window.Log("Given image is not a GIF!", MessageType.Error);
                 return;
             }
+
             relativePathToGif = AssetDatabase.GetAssetPath(GifTexture);
             // Write all frames to gif relative folder
             WriteFrames(
