@@ -11,6 +11,7 @@ namespace GIFImport.Editor
     {
         Texture2D gifSprite = null;
 
+        private bool previewTexturesSafe, showPreview;
         private Texture2D previewTex = null,
                           prevTexture = null;
         private List<Texture2D> previews = null;
@@ -42,6 +43,7 @@ namespace GIFImport.Editor
 
             helpBoxText = "Select an image to uncompress";
             helpboxType = MessageType.Info;
+            showPreview = false;
 
             tittleStyle = new GUIStyle();
             tittleStyle.fontSize = 20;
@@ -82,11 +84,16 @@ namespace GIFImport.Editor
             // OnGUI is called a lot of times!
             if (gifSprite != null)
             {
-                if (imageChanged)
-                    UpdatePreview();
+                EditorGUILayout.Space();
+                showPreview = GUILayout.Toggle(showPreview, new GUIContent("Show preview?"));
+                if (showPreview)
+                {
+                    if (previews == null)
+                        UpdatePreview();
 
-                if (previews != null)
-                    ConstructPreview();
+                    if (previews != null)
+                        ConstructPreview();
+                }
             }
         }
 
@@ -114,21 +121,22 @@ namespace GIFImport.Editor
 
             prevTexture = gifSprite;
             previewTex = null;
-
+            showPreview = false;
             Log("Press the button to import the GIF", MessageType.Info);
         }
 
-        private async void UpdatePreview()
+        private void UpdatePreview()
         {
             if (!reader.IsValidImage())
             {
                 previews?.Clear();
                 previews = null;
+                Log("Cannot show preview. Image given is not a GIF", MessageType.Warning);
                 return;
             }
-            var frames = await reader.ReadTimeline(5);
-
+            var frames = reader.ReadTimeline(5);
             previews = new List<Texture2D>();
+
             foreach (var img in frames)
             {
                 img.Flop();

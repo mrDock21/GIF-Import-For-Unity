@@ -41,10 +41,10 @@ namespace GIFImport.Editor
             return info.Format == MagickFormat.Gif;
         }
 
-        public async Task<List<MagickImage>> ReadTimeline(int numFrames)
+        public List<MagickImage> ReadTimeline(int numFrames)
         {
-            List<MagickImage> res = new List<MagickImage>();
             MagickImageCollection frames;
+            List<MagickImage> l = new List<MagickImage>();
             int spacing;
 
             frames = new MagickImageCollection(absolutePathToGif);
@@ -55,12 +55,13 @@ namespace GIFImport.Editor
 
             for (int i = 0; i < frames.Count; i += spacing)
             {
-                res.Add( new MagickImage(frames.ElementAt(i)) );
+                var img = new MagickImage(frames.ElementAt(i));
+                l.Add( new MagickImage(img) );
             }
 
             frames.Dispose();
 
-            return res;
+            return l;
         }
 
         public void ReadGifFile()
